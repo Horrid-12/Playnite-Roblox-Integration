@@ -39,6 +39,16 @@ namespace RobloxIntegration
             return new RobloxIntegrationSettingsView();
         }
 
+        public override IEnumerable<PlayController> GetPlayActions(GetPlayActionsArgs args)
+        {
+            if (args.Game.PluginId != Id)
+            {
+                yield break;
+            }
+
+            yield return new RobloxPlayController(args.Game);
+        }
+
         public override IEnumerable<GameMetadata> GetGames(LibraryGetGamesArgs args)
         {
             var games = new List<GameMetadata>();
@@ -156,16 +166,7 @@ namespace RobloxIntegration
                             },
                             Source = new MetadataNameProperty("Roblox"),
                             Description = fav.Description,
-                            GameActions = new List<GameAction>
-                            {
-                                new GameAction
-                                {
-                                    Name = "Launch in Roblox",
-                                    Type = GameActionType.URL,
-                                    Path = $"roblox://experiences/start?placeId={fav.RootPlaceId}",
-                                    IsPlayAction = true
-                                }
-                            }
+                            InstallDirectory = ""
                         };
 
                         // Add thumbnail as icon if available
