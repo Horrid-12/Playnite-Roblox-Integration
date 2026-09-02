@@ -275,6 +275,70 @@ namespace RobloxIntegration
             return result;
         }
 
+        /// <summary>
+        /// Validates whether the given account's session/credentials are still valid.
+        /// For public mode, resolves the username. For cookie mode, calls the authenticated endpoint.
+        /// </summary>
+        public SessionValidationResult ValidateSession(RobloxAccount account)
+        {
+            try
+            {
+                if (account.IsPublicMode)
+                {
+                    if (string.IsNullOrEmpty(account.RobloxUsername))
+                    {
+                        return new SessionValidationResult
+                        {
+                            IsValid = false,
+                            Message = "No username configured."
+                        };
+                    }
+
+                    var userId = GetUserIdFromUsername(account.RobloxUsername);
+                    return new SessionValidationResult
+                    {
+                        IsValid = userId > 0,
+                        ResolvedUserId = userId,
+                        ResolvedUsername = account.RobloxUsername,
+                        Message = userId > 0
+                            ? $"Username verified (ID: {userId})"
+                            : "Username not found on Roblox."
+                    };
+                }
+                else
+                {
+                    if (string.IsNullOrEmpty(account.RobloSecurityCookie))
+                    {
+                        return new SessionValidationResult
+                        {
+                            IsValid = false,
+                            Message = "No cookie configured."
+                        };
+                    }
+
+                    var user = GetAuthenticatedUser();
+                    return new SessionValidationResult
+                    {
+                        IsValid = user != null,
+                        ResolvedUserId = user?.UserId ?? 0,
+                        ResolvedUsername = user?.Username,
+                        Message = user != null
+                            ? $"Authenticated as {user.Username} (ID: {user.UserId})"
+                            : "Cookie expired or invalid."
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"Session validation failed for account '{account.DisplayLabel}'.");
+                return new SessionValidationResult
+                {
+                    IsValid = false,
+                    Message = $"Validation error: {ex.Message}"
+                };
+            }
+        }
+
         public void Dispose()
         {
             client?.Dispose();
@@ -312,5 +376,13 @@ namespace RobloxIntegration
         public string Description { get; set; }
         public string Creator { get; set; }
         public long RootPlaceId { get; set; }
+    }
+
+    public class SessionValidationResult
+    {
+        public bool IsValid { get; set; }
+        public long ResolvedUserId { get; set; }
+        public string ResolvedUsername { get; set; }
+        public string Message { get; set; }
     }
 }

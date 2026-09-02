@@ -4,94 +4,179 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d"
-             d:DesignHeight="450" d:DesignWidth="600">
+             d:DesignHeight="600" d:DesignWidth="600">
     <StackPanel Margin="20">
         <TextBlock Text="Roblox Integration" FontSize="20" FontWeight="Bold" Margin="0,0,0,15" />
 
-        <!-- Mode Selection CheckBox -->
-        <CheckBox x:Name="PublicModeCheck" 
-                  Content="Use Public Favorites (No login / cookie required)" 
-                  IsChecked="{Binding Settings.UsePublicFavorites}" 
-                  FontWeight="SemiBold" FontSize="14" Margin="0,0,0,15" />
+        <!-- ═══════════════════════════════════════════ -->
+        <!--  Accounts Header + Add/Remove Buttons      -->
+        <!-- ═══════════════════════════════════════════ -->
+        <DockPanel Margin="0,0,0,8">
+            <TextBlock Text="Accounts" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="+ Public" Command="{Binding AddPublicAccountCommand}"
+                        Padding="8,4" Margin="0,0,6,0" ToolTip="Add a public-favorites account (no login needed)" />
+                <Button Content="+ Cookie" Command="{Binding AddCookieAccountCommand}"
+                        Padding="8,4" Margin="0,0,6,0" ToolTip="Add an authenticated account via .ROBLOSECURITY cookie" />
+                <Button Content="🗑 Remove" Command="{Binding RemoveAccountCommand}"
+                        Padding="8,4" ToolTip="Remove the selected account" />
+            </StackPanel>
+        </DockPanel>
 
-        <!-- Unauthenticated Public Section -->
-        <StackPanel Visibility="{Binding IsChecked, ElementName=PublicModeCheck, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <TextBlock Text="Roblox Username" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5" />
-            <TextBlock Text="Enter your Roblox username. Note: Your inventory/favorites must be set to 'Everyone' or 'Public' in Roblox privacy settings."
-                       TextWrapping="Wrap" Margin="0,0,0,8" Foreground="Gray" FontSize="11" />
-            <TextBox Text="{Binding Settings.RobloxUsername, UpdateSourceTrigger=PropertyChanged}"
-                     Height="28" FontSize="12" VerticalContentAlignment="Center" Padding="5,0" />
-        </StackPanel>
+        <!-- ═══════════════════════════════════════════ -->
+        <!--  Accounts List                              -->
+        <!-- ═══════════════════════════════════════════ -->
+        <ListBox ItemsSource="{Binding Settings.Accounts}"
+                 SelectedItem="{Binding SelectedAccount}"
+                 MinHeight="80" MaxHeight="160"
+                 Margin="0,0,0,10"
+                 HorizontalContentAlignment="Stretch">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <DockPanel Margin="4,3">
+                        <!-- Enabled checkbox -->
+                        <CheckBox IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                  ToolTip="Include this account during library sync" />
+                        <!-- Status indicator -->
+                        <TextBlock Text="{Binding StatusIndicator}" DockPanel.Dock="Right"
+                                   VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11" />
+                        <!-- Mode badge -->
+                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center"
+                                   FontSize="10" Foreground="Gray" Margin="8,0,0,0">
+                            <Run Text="(" /><Run Text="{Binding ModeLabel, Mode=OneWay}" /><Run Text=")" />
+                        </TextBlock>
+                        <!-- Display label -->
+                        <TextBlock Text="{Binding DisplayLabel}" VerticalAlignment="Center"
+                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
-        <!-- Authenticated Cookie Section -->
+        <!-- ═══════════════════════════════════════════ -->
+        <!--  Selected Account Details                   -->
+        <!-- ═══════════════════════════════════════════ -->
         <StackPanel>
             <StackPanel.Style>
                 <Style TargetType="StackPanel">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsChecked, ElementName=PublicModeCheck}" Value="False">
+                        <DataTrigger Binding="{Binding HasSelectedAccount}" Value="True">
                             <Setter Property="Visibility" Value="Visible" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </StackPanel.Style>
-            
-            <!-- Option 1: IWebView Login -->
-            <TextBlock Text="Option 1: Browser Login" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5" />
-            <TextBlock Text="Opens an embedded browser for you to log into Roblox. The cookie will be captured automatically."
-                       TextWrapping="Wrap" Margin="0,0,0,8" Foreground="Gray" FontSize="11" />
-            <Button Content="Log in with Roblox"
-                    Command="{Binding LoginCommand}"
-                    Padding="12,6" HorizontalAlignment="Left" />
 
-            <!-- Separator -->
-            <Separator Margin="0,15,0,15" />
+            <Separator Margin="0,5,0,12" />
+            <TextBlock Text="Selected Account Details" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" />
 
-            <!-- Option 2: Manual Cookie -->
-            <TextBlock Text="Option 2: Manual Cookie Entry" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5" />
-            <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Foreground="Gray" FontSize="11">
-                <Run Text="If the browser doesn't load, paste your .ROBLOSECURITY cookie here." />
-                <LineBreak />
-                <Run Text="(Browser → F12 → Application → Cookies → .ROBLOSECURITY)" />
-            </TextBlock>
-            <TextBox Text="{Binding Settings.RobloSecurityCookie, UpdateSourceTrigger=PropertyChanged}"
-                     Height="28" FontFamily="Consolas" FontSize="11" VerticalContentAlignment="Center" Padding="5,0" />
-            
-            <!-- Login Status -->
-            <StackPanel Orientation="Horizontal" Margin="0,15,0,0">
-                <TextBlock Text="Cookie Status: " FontWeight="SemiBold" VerticalAlignment="Center" />
-                <TextBlock VerticalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="Not Logged In" />
-                            <Setter Property="Foreground" Value="OrangeRed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsUserLoggedIn}" Value="True">
-                                    <Setter Property="Text" Value="Cookie Set" />
-                                    <Setter Property="Foreground" Value="LimeGreen" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
+            <!-- Label -->
+            <TextBlock Text="Display Label" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4" />
+            <TextBox Text="{Binding SelectedAccount.DisplayLabel, UpdateSourceTrigger=PropertyChanged}"
+                     Height="28" FontSize="12" VerticalContentAlignment="Center" Padding="5,0" Margin="0,0,0,10" />
+
+            <!-- Mode (read-only indicator) -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="Mode: " FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding SelectedAccount.ModeLabel}" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Public Mode: Username -->
+            <StackPanel>
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedAccount.IsPublicMode}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+
+                <TextBlock Text="Roblox Username" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4" />
+                <TextBlock Text="Enter the Roblox username. Favorites must be set to 'Everyone' or 'Public' in Roblox privacy settings."
+                           TextWrapping="Wrap" Margin="0,0,0,6" Foreground="Gray" FontSize="11" />
+                <TextBox Text="{Binding SelectedAccount.RobloxUsername, UpdateSourceTrigger=PropertyChanged}"
+                         Height="28" FontSize="12" VerticalContentAlignment="Center" Padding="5,0" />
+            </StackPanel>
+
+            <!-- Cookie Mode: Login + Manual Cookie -->
+            <StackPanel>
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSelectedAccountCookieMode}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+
+                <!-- Browser Login -->
+                <TextBlock Text="Browser Login" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4" />
+                <TextBlock Text="Opens an embedded browser to log into Roblox. The cookie is captured automatically."
+                           TextWrapping="Wrap" Margin="0,0,0,6" Foreground="Gray" FontSize="11" />
+                <Button Content="Log in with Roblox"
+                        Command="{Binding LoginCommand}"
+                        Padding="12,6" HorizontalAlignment="Left" Margin="0,0,0,10" />
+
+                <Separator Margin="0,5,0,10" />
+
+                <!-- Manual Cookie -->
+                <TextBlock Text="Manual Cookie Entry" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4" />
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6" Foreground="Gray" FontSize="11">
+                    <Run Text="If the browser doesn't load, paste your .ROBLOSECURITY cookie here." />
+                    <LineBreak />
+                    <Run Text="(Browser → F12 → Application → Cookies → .ROBLOSECURITY)" />
                 </TextBlock>
+                <TextBox Text="{Binding SelectedAccount.RobloSecurityCookie, UpdateSourceTrigger=PropertyChanged}"
+                         Height="28" FontFamily="Consolas" FontSize="11" VerticalContentAlignment="Center" Padding="5,0" />
+
+                <!-- Cookie Status -->
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <TextBlock Text="Cookie Status: " FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="Not Set" />
+                                <Setter Property="Foreground" Value="OrangeRed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedAccount.HasCookie}" Value="True">
+                                        <Setter Property="Text" Value="Cookie Set" />
+                                        <Setter Property="Foreground" Value="LimeGreen" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Test Connection -->
+            <Separator Margin="0,12,0,12" />
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Test Connection"
+                        Command="{Binding TestConnectionCommand}"
+                        Padding="12,6" HorizontalAlignment="Left" />
+                <TextBlock Text="{Binding SelectedAccountConnectionStatus}"
+                           VerticalAlignment="Center" Margin="12,0,0,0"
+                           FontSize="12" TextWrapping="Wrap" MaxWidth="400" />
             </StackPanel>
         </StackPanel>
 
-        <!-- Separator -->
+        <!-- ═══════════════════════════════════════════ -->
+        <!--  Validate All + Footer                      -->
+        <!-- ═══════════════════════════════════════════ -->
         <Separator Margin="0,15,0,15" />
 
-        <!-- Test Connection -->
-        <StackPanel Orientation="Horizontal">
-            <Button Content="Test Connection"
-                    Command="{Binding TestConnectionCommand}"
-                    Padding="12,6" HorizontalAlignment="Left" />
-            <TextBlock Text="{Binding ConnectionStatus}"
-                       VerticalAlignment="Center" Margin="12,0,0,0"
-                       FontSize="12" TextWrapping="Wrap" MaxWidth="450" />
-        </StackPanel>
+        <Button Content="Validate All Accounts"
+                Command="{Binding ValidateAllCommand}"
+                Padding="12,6" HorizontalAlignment="Left" Margin="0,0,0,8" />
 
-        <!-- Warning -->
-        <TextBlock Text="⚠ Storing cookies can be risky if shared. If using Public Favorites, no sensitive data is stored."
-                   TextWrapping="Wrap" Margin="0,18,0,0" Foreground="Gray" FontStyle="Italic" FontSize="11" />
+        <TextBlock Text="⚠ Storing cookies can be risky if shared. Public-favorites accounts store no sensitive data."
+                   TextWrapping="Wrap" Margin="0,8,0,0" Foreground="Gray" FontStyle="Italic" FontSize="11" />
     </StackPanel>
 </UserControl>

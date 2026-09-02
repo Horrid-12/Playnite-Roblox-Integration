@@ -484,3 +484,6 @@ $RECYCLE.BIN/
 # Playnite build artifacts
 *.pext
 build/
+
+# Task tracking
+[Tt]askflow.md
