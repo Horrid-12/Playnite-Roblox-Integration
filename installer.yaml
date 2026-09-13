@@ -1,5 +1,13 @@
 AddonId: 0c2dcf0f-511b-43e3-b6db-9c4b331c0dd4
 Packages:
+  - Version: 1.0.3
+    RequiredApiVersion: 6.11.0
+    ReleaseDate: 2026-09-02
+    PackageUrl: https://github.com/Horrid-12/Playnite-Roblox-Integration/releases/download/v1.0.3/RobloxIntegration_1_0_3.pext
+    Changelog:
+      - Implemented multi-account support (up to 5 accounts with per-account enable toggles)
+      - Added session & cookie health checks that notify when an account needs re-authentication
+      - Added public favorites mode that imports an account's favorites with just a username (no cookie required)
   - Version: 1.0.2
     RequiredApiVersion: 6.11.0
     ReleaseDate: 2026-08-27
