@@ -176,6 +176,27 @@
                 Command="{Binding ValidateAllCommand}"
                 Padding="12,6" HorizontalAlignment="Left" Margin="0,0,0,8" />
 
+        <!-- ═══════════════════════════════════════════ -->
+        <!--  Custom Game Actions                        -->
+        <!-- ═══════════════════════════════════════════ -->
+        <Separator Margin="0,15,0,15" />
+        <TextBlock Text="Custom Game Actions" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,4" />
+        <TextBlock Text="Extra play actions shown in the ▼ menu next to a Roblox game's Play button. Each one asks for the details it needs when launched."
+                   TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,0,0,8" />
+
+        <CheckBox Content="Join Private Server (invite link, link code, or access code)"
+                  IsChecked="{Binding Settings.ShowPrivateServerAction}"
+                  Margin="0,0,0,4"
+                  ToolTip="Paste a private server invite link, link code, or access code to join that server" />
+        <CheckBox Content="Join Specific Server (server instance / Job ID)"
+                  IsChecked="{Binding Settings.ShowServerInstanceAction}"
+                  Margin="0,0,0,4"
+                  ToolTip="Join an exact server instance by its Job ID (gameInstanceId)" />
+        <CheckBox Content="Join Friend's Activity (friend currently in an experience)"
+                  IsChecked="{Binding Settings.ShowFollowFriendAction}"
+                  Margin="0,0,0,4"
+                  ToolTip="Pick a friend from your friends list and join the experience and server they are playing right now. Requires a cookie-authenticated account." />
+
         <TextBlock Text="⚠ Storing cookies can be risky if shared. Public-favorites accounts store no sensitive data."
                    TextWrapping="Wrap" Margin="0,8,0,0" Foreground="Gray" FontStyle="Italic" FontSize="11" />
     </StackPanel>

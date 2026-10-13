@@ -9,6 +9,11 @@ A seamless Library Integration for [Playnite](https://playnite.link/) that impor
 - **Public & Cookie Modes:** Import a user's public favorites with just a username (no login required), or authenticate with a `.ROBLOSECURITY` cookie to access their favorites.
 - **Session Health Checks:** Validates each account during sync and raises a notification when a session has expired or become invalid.
 - **Direct Launch:** One-click launch opens the specific experience directly in the Roblox desktop player via the `roblox://` protocol. Requires the Roblox desktop client to be installed.
+- **Custom Game Actions:** Extra play actions in the ▼ menu next to a Roblox game's Play button:
+  - **Join Private Server** — paste an invite link (`roblox.com/share?code=...`), a link code, or a private server access code.
+  - **Join Specific Server** — paste a server instance ID (Job ID) to join that exact server.
+  - **Join Friend's Activity** — pick a friend from your friends list (with live presence: *Playing <experience>*, *Online*, *Offline*) and join the experience and server they are in right now. Requires a cookie-authenticated account.
+  - Each action prompts for its own details when launched, and all three can be toggled in extension settings under **Custom Game Actions**.
 - **Playtime Tracking:** Tails the Roblox Player logs (`%LOCALAPPDATA%\Roblox\logs`) to detect when you leave an experience, so playtime is recorded correctly even if the Roblox player stays open in the background. Windows only.
 - **Custom Platform Icon:** Registers a `Roblox` platform with a bundled icon and clears Playnite's default cover/background for it.
 

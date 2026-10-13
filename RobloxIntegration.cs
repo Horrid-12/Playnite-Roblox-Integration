@@ -46,7 +46,50 @@ namespace RobloxIntegration
                 yield break;
             }
 
-            yield return new RobloxPlayController(args.Game);
+            // Primary action is always available.
+            yield return new RobloxPlayController(args.Game, this, RobloxLaunchMode.Default);
+
+            var settings = settingsViewModel?.Settings;
+            if (settings == null)
+            {
+                yield break;
+            }
+
+            // Secondary (custom) actions, each prompting for its own launch details.
+            if (settings.ShowPrivateServerAction)
+            {
+                yield return new RobloxPlayController(args.Game, this, RobloxLaunchMode.PrivateServer);
+            }
+
+            if (settings.ShowServerInstanceAction)
+            {
+                yield return new RobloxPlayController(args.Game, this, RobloxLaunchMode.ServerInstance);
+            }
+
+            if (settings.ShowFollowFriendAction)
+            {
+                yield return new RobloxPlayController(args.Game, this, RobloxLaunchMode.FollowFriend);
+            }
+        }
+
+        /// <summary>
+        /// Returns the best cookie-authenticated account for authenticated API calls
+        /// (friend lists, presence), preferring a session that was validated recently.
+        /// Returns null when no such account is configured.
+        /// </summary>
+        public RobloxAccount GetAuthenticatedAccount()
+        {
+            var accounts = settingsViewModel?.Settings?.Accounts;
+            if (accounts == null || accounts.Count == 0)
+            {
+                return null;
+            }
+
+            return accounts
+                .Where(a => a != null && a.IsEnabled && !a.IsPublicMode && a.HasCookie)
+                .OrderByDescending(a => a.IsSessionValid)
+                .ThenByDescending(a => a.LastValidated)
+                .FirstOrDefault();
         }
 
         public override IEnumerable<GameMetadata> GetGames(LibraryGetGamesArgs args)

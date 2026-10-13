@@ -21,6 +21,25 @@ namespace RobloxIntegration
         public const int MaxAccounts = 5;
 
         // ──────────────────────────────────────────────
+        //  Custom game actions (secondary play actions)
+        // ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Show the "Join Private Server" secondary play action.
+        /// </summary>
+        public bool ShowPrivateServerAction { get; set; } = true;
+
+        /// <summary>
+        /// Show the "Join Specific Server" secondary play action.
+        /// </summary>
+        public bool ShowServerInstanceAction { get; set; } = true;
+
+        /// <summary>
+        /// Show the "Join Friend's Activity" secondary play action.
+        /// </summary>
+        public bool ShowFollowFriendAction { get; set; } = true;
+
+        // ──────────────────────────────────────────────
         // Legacy fields — kept for one-time migration only.
         // After migration these are cleared and ignored.
         // ──────────────────────────────────────────────

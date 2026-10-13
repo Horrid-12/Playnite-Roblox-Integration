@@ -276,6 +276,120 @@ namespace RobloxIntegration
         }
 
         /// <summary>
+        /// Gets the friend list of the specified user (paginated, up to 500 friends).
+        /// Requires a cookie-authenticated client.
+        /// </summary>
+        public List<RobloxFriend> GetFriends(long userId)
+        {
+            var friends = new List<RobloxFriend>();
+            if (userId <= 0) return friends;
+
+            string cursor = null;
+            try
+            {
+                do
+                {
+                    var url = $"https://friends.roblox.com/v1/users/{userId}/friends?limit=100";
+                    if (!string.IsNullOrEmpty(cursor))
+                    {
+                        url += $"&cursor={Uri.EscapeDataString(cursor)}";
+                    }
+
+                    var response = client.GetStringAsync(url).GetAwaiter().GetResult();
+                    var json = JObject.Parse(response);
+                    var data = json["data"];
+
+                    if (data != null && data.HasValues)
+                    {
+                        foreach (var item in data)
+                        {
+                            // Items are normally flat user objects; tolerate a nested "user" wrapper too.
+                            var user = item.Type == JTokenType.Object && item["user"] != null ? item["user"] : item;
+                            var id = user["id"]?.Value<long>() ?? 0;
+                            if (id <= 0) continue;
+
+                            friends.Add(new RobloxFriend
+                            {
+                                Id = id,
+                                Name = user["name"]?.Value<string>() ?? "",
+                                DisplayName = user["displayName"]?.Value<string>() ??
+                                              user["name"]?.Value<string>() ?? ""
+                            });
+                        }
+                    }
+
+                    cursor = json["nextPageCursor"]?.Value<string>();
+                }
+                while (!string.IsNullOrEmpty(cursor));
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"Failed to fetch friends for user ID {userId}");
+            }
+
+            return friends;
+        }
+
+        /// <summary>
+        /// Gets presence (offline / online / in-game + current location) for a batch of users.
+        /// Requires a cookie-authenticated client. Requests are batched 100 IDs at a time.
+        /// </summary>
+        public Dictionary<long, UserPresenceInfo> GetPresences(IEnumerable<long> userIds)
+        {
+            var result = new Dictionary<long, UserPresenceInfo>();
+            var ids = userIds?.Where(id => id > 0).Distinct().ToList() ?? new List<long>();
+
+            for (int i = 0; i < ids.Count; i += 100)
+            {
+                try
+                {
+                    var batch = ids.Skip(i).Take(100).ToList();
+                    var payload = new JObject { ["userIds"] = new JArray(batch) };
+                    var content = new StringContent(payload.ToString(), System.Text.Encoding.UTF8, "application/json");
+
+                    var response = client.PostAsync("https://presence.roblox.com/v1/presence/users", content)
+                        .GetAwaiter().GetResult();
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        logger.Warn($"Roblox: Presence request failed with status {(int)response.StatusCode}.");
+                        continue;
+                    }
+
+                    var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    var presences = JObject.Parse(body)["userPresences"];
+                    if (presences == null) continue;
+
+                    foreach (var item in presences)
+                    {
+                        var info = new UserPresenceInfo
+                        {
+                            UserId = item["userId"]?.Value<long>() ?? 0,
+                            // 0 = Offline, 1 = Online, 2 = InGame, 3 = InStudio, 4 = Invisible
+                            PresenceType = item["userPresenceType"]?.Value<int>() ?? 0,
+                            LastLocation = item["lastLocation"]?.Value<string>() ?? "",
+                            PlaceId = item["placeId"]?.Value<long>() ?? 0,
+                            RootPlaceId = item["rootPlaceId"]?.Value<long>() ?? 0,
+                            GameId = item["gameId"]?.Value<string>() ?? "",
+                            UniverseId = item["universeId"]?.Value<long>() ?? 0
+                        };
+
+                        if (info.UserId > 0)
+                        {
+                            result[info.UserId] = info;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex, "Failed to fetch Roblox presence batch.");
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Validates whether the given account's session/credentials are still valid.
         /// For public mode, resolves the username. For cookie mode, calls the authenticated endpoint.
         /// </summary>
@@ -384,5 +498,53 @@ namespace RobloxIntegration
         public long ResolvedUserId { get; set; }
         public string ResolvedUsername { get; set; }
         public string Message { get; set; }
+    }
+
+    /// <summary>
+    /// A single entry from a user's Roblox friend list.
+    /// </summary>
+    public class RobloxFriend
+    {
+        public long Id { get; set; }
+        public string Name { get; set; }
+        public string DisplayName { get; set; }
+    }
+
+    /// <summary>
+    /// Roblox presence for a single user (what they are doing right now).
+    /// </summary>
+    public class UserPresenceInfo
+    {
+        public long UserId { get; set; }
+
+        /// <summary>
+        /// 0 = Offline, 1 = Online, 2 = InGame, 3 = InStudio, 4 = Invisible.
+        /// </summary>
+        public int PresenceType { get; set; }
+
+        /// <summary>
+        /// Human readable location, e.g. the experience name when in-game.
+        /// </summary>
+        public string LastLocation { get; set; }
+
+        /// <summary>
+        /// The place the user is currently in (0 when not in-game).
+        /// </summary>
+        public long PlaceId { get; set; }
+
+        public long RootPlaceId { get; set; }
+
+        /// <summary>
+        /// The server instance (DataModel.JobId) the user is in, if known.
+        /// </summary>
+        public string GameId { get; set; }
+
+        public long UniverseId { get; set; }
+
+        [Newtonsoft.Json.JsonIgnore]
+        public bool IsInGame => PresenceType == 2;
+
+        [Newtonsoft.Json.JsonIgnore]
+        public bool IsOnline => PresenceType == 1 || PresenceType == 2 || PresenceType == 3;
     }
 }
