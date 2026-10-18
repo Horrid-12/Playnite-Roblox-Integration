@@ -12,7 +12,7 @@ A seamless Library Integration for [Playnite](https://playnite.link/) that impor
 - **Custom Game Actions:** Extra play actions in the ▼ menu next to a Roblox game's Play button:
   - **Join Private Server** — paste an invite link (`roblox.com/share?code=...`), a link code, or a private server access code.
   - **Join Specific Server** — paste a server instance ID (Job ID) to join that exact server.
-  - **Join Friend's Activity** — pick a friend from your friends list (with live presence: *Playing <experience>*, *Online*, *Offline*) and join the experience and server they are in right now. Requires a cookie-authenticated account.
+  - **Join Friend's Activity** — search your friends list by username or display name, or enter any player's username or user ID to look them up and join the experience and server they are playing right now. (Requires a cookie-authenticated account for friend lists and live activity tracking).
   - Each action prompts for its own details when launched, and all three can be toggled in extension settings under **Custom Game Actions**.
 - **Playtime Tracking:** Tails the Roblox Player logs (`%LOCALAPPDATA%\Roblox\logs`) to detect when you leave an experience, so playtime is recorded correctly even if the Roblox player stays open in the background. Windows only.
 - **Custom Platform Icon:** Registers a `Roblox` platform with a bundled icon and clears Playnite's default cover/background for it.

@@ -2,8 +2,10 @@ using Playnite.SDK;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 
 namespace RobloxIntegration
 {
@@ -67,7 +69,11 @@ namespace RobloxIntegration
                     DetailText.Text = "Pick a friend and jump straight into the experience and server they are " +
                                       "playing right now.";
                     FriendPanel.Visibility = Visibility.Visible;
-                    Loaded += (s, e) => LoadFriends();
+                    Loaded += (s, e) =>
+                    {
+                        FriendSearchBox.Focus();
+                        LoadFriends();
+                    };
                     RefreshButton.Click += (s, e) => LoadFriends();
                     break;
             }
@@ -77,35 +83,44 @@ namespace RobloxIntegration
         //  OK / validation
         // ──────────────────────────────────────────────
 
-        private void PlayButton_Click(object sender, RoutedEventArgs e)
+        private async void PlayButton_Click(object sender, RoutedEventArgs e)
         {
             StatusText.Text = string.Empty;
+            PlayButton.IsEnabled = false;
 
-            bool valid;
-            switch (mode)
+            try
             {
-                case RobloxLaunchMode.PrivateServer:
-                    valid = ValidatePrivateServer();
-                    break;
-                case RobloxLaunchMode.ServerInstance:
-                    valid = ValidateServerInstance();
-                    break;
-                case RobloxLaunchMode.FollowFriend:
-                    valid = ValidateFollowFriend();
-                    break;
-                default:
-                    valid = false;
-                    break;
+                bool valid;
+                switch (mode)
+                {
+                    case RobloxLaunchMode.PrivateServer:
+                        valid = ValidatePrivateServer();
+                        break;
+                    case RobloxLaunchMode.ServerInstance:
+                        valid = ValidateServerInstance();
+                        break;
+                    case RobloxLaunchMode.FollowFriend:
+                        valid = await ValidateFollowFriendAsync();
+                        break;
+                    default:
+                        valid = false;
+                        break;
+                }
+
+                if (valid)
+                {
+                    DialogResult = true;
+                }
             }
-
-            if (valid)
+            finally
             {
-                DialogResult = true;
+                PlayButton.IsEnabled = true;
             }
         }
 
         private bool ValidatePrivateServer()
         {
+            StatusText.Foreground = Brushes.OrangeRed;
             var input = InputBox.Text.Trim();
             if (input.Length == 0)
             {
@@ -162,6 +177,7 @@ namespace RobloxIntegration
 
         private bool ValidateServerInstance()
         {
+            StatusText.Foreground = Brushes.OrangeRed;
             var input = InputBox.Text.Trim();
             if (input.Length == 0)
             {
@@ -206,51 +222,195 @@ namespace RobloxIntegration
             return true;
         }
 
-        private bool ValidateFollowFriend()
+        private async Task<bool> ValidateFollowFriendAsync()
         {
+            StatusText.Foreground = Brushes.OrangeRed;
             var manual = ManualIdBox.Text.Trim();
-            if (manual.Length > 0)
-            {
-                long userId;
-                if (!long.TryParse(manual, out userId) || userId <= 0)
-                {
-                    StatusText.Text = "Enter a numeric Roblox user ID (found on the user's profile page).";
-                    return false;
-                }
 
-                ResultPlaceId = defaultPlaceId;
-                ResultParamName = "userId";
-                ResultParamValue = userId.ToString();
-                return true;
+            // If manual box is empty, but user typed something in FriendSearchBox and no friend was selected:
+            if (string.IsNullOrEmpty(manual) && FriendBox.SelectedItem == null && !string.IsNullOrWhiteSpace(FriendSearchBox.Text))
+            {
+                manual = FriendSearchBox.Text.Trim();
+            }
+
+            if (!string.IsNullOrEmpty(manual))
+            {
+                return await ResolveAndSetTargetUserAsync(manual);
             }
 
             var selected = FriendBox.SelectedItem as FriendEntry;
             if (selected == null)
             {
-                StatusText.Text = "Pick a friend from the list, or enter a user ID manually.";
+                StatusText.Text = "Pick a friend from the list, or enter a username / user ID.";
                 return false;
             }
 
             var presence = selected.Presence;
-            if (presence == null || !presence.IsInGame || presence.PlaceId <= 0)
+            if (presence != null && presence.IsInGame && presence.PlaceId > 0)
             {
-                StatusText.Text = selected.DisplayName + " isn't in an experience right now. " +
-                                  "Use the manual user ID field if you want to follow them instead.";
-                return false;
-            }
-
-            // Join their exact server when we know it, otherwise follow the user into the experience.
-            ResultPlaceId = presence.PlaceId.ToString();
-            if (!string.IsNullOrEmpty(presence.GameId))
-            {
-                ResultParamName = "gameInstanceId";
-                ResultParamValue = presence.GameId;
+                ResultPlaceId = presence.PlaceId.ToString();
+                if (!string.IsNullOrEmpty(presence.GameId))
+                {
+                    ResultParamName = "gameInstanceId";
+                    ResultParamValue = presence.GameId;
+                }
+                else
+                {
+                    ResultParamName = "userId";
+                    ResultParamValue = selected.Id.ToString();
+                }
             }
             else
             {
+                ResultPlaceId = defaultPlaceId;
                 ResultParamName = "userId";
                 ResultParamValue = selected.Id.ToString();
             }
+
+            return true;
+        }
+
+        private async Task<bool> ResolveAndSetTargetUserAsync(string input)
+        {
+            string cleanInput = input.Trim();
+
+            // Support pasting Roblox profile URLs: e.g. https://www.roblox.com/users/12345678/profile
+            if (IsLikelyUrl(cleanInput))
+            {
+                var match = Regex.Match(cleanInput, @"/users/(\d+)", RegexOptions.IgnoreCase);
+                if (match.Success)
+                {
+                    cleanInput = match.Groups[1].Value;
+                }
+            }
+
+            if (cleanInput.StartsWith("@"))
+            {
+                cleanInput = cleanInput.Substring(1).Trim();
+            }
+
+            if (string.IsNullOrEmpty(cleanInput))
+            {
+                StatusText.Foreground = Brushes.OrangeRed;
+                StatusText.Text = "Enter a valid username or numeric user ID.";
+                return false;
+            }
+
+            // 1. Check if the target is already in the loaded friends list
+            var friendMatch = friendEntries.FirstOrDefault(f =>
+                string.Equals(f.Name, cleanInput, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(f.DisplayName, cleanInput, StringComparison.OrdinalIgnoreCase) ||
+                f.Id.ToString() == cleanInput);
+
+            if (friendMatch != null)
+            {
+                var presence = friendMatch.Presence;
+                if (presence != null && presence.IsInGame && presence.PlaceId > 0)
+                {
+                    ResultPlaceId = presence.PlaceId.ToString();
+                    if (!string.IsNullOrEmpty(presence.GameId))
+                    {
+                        ResultParamName = "gameInstanceId";
+                        ResultParamValue = presence.GameId;
+                    }
+                    else
+                    {
+                        ResultParamName = "userId";
+                        ResultParamValue = friendMatch.Id.ToString();
+                    }
+                }
+                else
+                {
+                    ResultPlaceId = defaultPlaceId;
+                    ResultParamName = "userId";
+                    ResultParamValue = friendMatch.Id.ToString();
+                }
+                return true;
+            }
+
+            // 2. Resolve user ID if numeric or look up by username
+            long targetUserId = 0;
+            if (long.TryParse(cleanInput, out long parsedId) && parsedId > 0)
+            {
+                targetUserId = parsedId;
+            }
+            else
+            {
+                StatusText.Foreground = Brushes.Gray;
+                StatusText.Text = $"Looking up @{cleanInput} on Roblox…";
+
+                var authAccount = plugin?.GetAuthenticatedAccount();
+                string cookie = authAccount?.RobloSecurityCookie;
+
+                targetUserId = await Task.Run(() =>
+                {
+                    try
+                    {
+                        using (var api = new RobloxApiClient(cookie))
+                        {
+                            return api.GetUserIdFromUsername(cleanInput);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(ex, $"Roblox: Failed to look up username '{cleanInput}'.");
+                        return 0;
+                    }
+                });
+
+                if (targetUserId <= 0)
+                {
+                    StatusText.Foreground = Brushes.OrangeRed;
+                    StatusText.Text = $"Roblox user '{cleanInput}' was not found.";
+                    return false;
+                }
+            }
+
+            // 3. Try to fetch live presence if an authenticated account is available
+            var account = plugin?.GetAuthenticatedAccount();
+            if (account != null && !string.IsNullOrEmpty(account.RobloSecurityCookie))
+            {
+                StatusText.Foreground = Brushes.Gray;
+                StatusText.Text = "Checking player activity…";
+
+                var presenceInfo = await Task.Run(() =>
+                {
+                    try
+                    {
+                        using (var api = new RobloxApiClient(account.RobloSecurityCookie))
+                        {
+                            var presences = api.GetPresences(new[] { targetUserId });
+                            return presences.ContainsKey(targetUserId) ? presences[targetUserId] : null;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Warn(ex, $"Roblox: Failed to query presence for user ID {targetUserId}.");
+                        return null;
+                    }
+                });
+
+                if (presenceInfo != null && presenceInfo.IsInGame && presenceInfo.PlaceId > 0)
+                {
+                    ResultPlaceId = presenceInfo.PlaceId.ToString();
+                    if (!string.IsNullOrEmpty(presenceInfo.GameId))
+                    {
+                        ResultParamName = "gameInstanceId";
+                        ResultParamValue = presenceInfo.GameId;
+                    }
+                    else
+                    {
+                        ResultParamName = "userId";
+                        ResultParamValue = targetUserId.ToString();
+                    }
+                    return true;
+                }
+            }
+
+            // Fallback: Launch the game's default place and follow target user ID
+            ResultPlaceId = defaultPlaceId;
+            ResultParamName = "userId";
+            ResultParamValue = targetUserId.ToString();
             return true;
         }
 
@@ -266,7 +426,8 @@ namespace RobloxIntegration
                 FriendBox.ItemsSource = null;
                 FriendHint.Text = "No authenticated (cookie) account is configured — add one in the extension " +
                                   "settings to see your friends list.";
-                StatusText.Text = "You can still join by entering a user ID manually.";
+                StatusText.Foreground = Brushes.Gray;
+                StatusText.Text = "You can still join any player by username or user ID below.";
                 ManualIdBox.Focus();
                 return;
             }
@@ -327,6 +488,8 @@ namespace RobloxIntegration
             });
         }
 
+        private bool presenceUnavailable = false;
+
         private void CompleteFriendLoad(Task<FriendLoadResult> task)
         {
             RefreshButton.IsEnabled = true;
@@ -340,32 +503,95 @@ namespace RobloxIntegration
             }
 
             var result = task.Result ?? FriendLoadResult.Empty;
+            presenceUnavailable = result.PresenceUnavailable;
             friendEntries = result.Entries ?? new List<FriendEntry>();
             friendEntries = friendEntries
                 .OrderBy(f => PresenceRank(f.Presence))
                 .ThenBy(f => f.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            FriendBox.ItemsSource = friendEntries;
+            ApplyFriendFilter();
+        }
 
-            if (friendEntries.Count == 0)
+        private void FriendSearchBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            ApplyFriendFilter();
+        }
+
+        private void FriendSearchBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Down)
+            {
+                FriendBox.Focus();
+                e.Handled = true;
+            }
+        }
+
+        private void ApplyFriendFilter()
+        {
+            var query = FriendSearchBox.Text?.Trim() ?? string.Empty;
+            if (query.StartsWith("@"))
+            {
+                query = query.Substring(1).Trim();
+            }
+
+            List<FriendEntry> filtered;
+            if (string.IsNullOrEmpty(query))
+            {
+                filtered = friendEntries;
+            }
+            else
+            {
+                filtered = friendEntries
+                    .Where(f => (f.Name != null && f.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                                (f.DisplayName != null && f.DisplayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0))
+                    .ToList();
+            }
+
+            FriendBox.ItemsSource = filtered;
+
+            if (filtered.Count > 0)
+            {
+                FriendBox.SelectedIndex = 0;
+            }
+            else
             {
                 FriendBox.SelectedIndex = -1;
+            }
+
+            UpdateFriendHint(filtered.Count, query);
+        }
+
+        private void UpdateFriendHint(int filteredCount, string query)
+        {
+            if (friendEntries.Count == 0)
+            {
                 FriendHint.Text = "No friends found on this account.";
                 return;
             }
 
-            if (result.PresenceUnavailable)
+            if (presenceUnavailable)
             {
-                FriendBox.SelectedIndex = -1;
-                FriendHint.Text = $"{friendEntries.Count} friends — live activity status is unavailable right now " +
-                                  "(rate limited or session issue). Use the manual user ID field below, or hit Refresh.";
+                FriendHint.Text = string.IsNullOrEmpty(query)
+                    ? $"{friendEntries.Count} friends (live activity unavailable — rate limited or session issue)."
+                    : $"Showing {filteredCount} friends (live activity status unavailable).";
                 return;
             }
 
-            var inGame = friendEntries.Count(f => f.Presence != null && f.Presence.IsInGame);
-            FriendHint.Text = $"{friendEntries.Count} friends — {inGame} currently in an experience.";
-            FriendBox.SelectedIndex = 0;
+            if (string.IsNullOrEmpty(query))
+            {
+                var inGame = friendEntries.Count(f => f.Presence != null && f.Presence.IsInGame);
+                FriendHint.Text = $"{friendEntries.Count} friends — {inGame} currently in an experience.";
+            }
+            else if (filteredCount > 0)
+            {
+                var inGame = ((List<FriendEntry>)FriendBox.ItemsSource).Count(f => f.Presence != null && f.Presence.IsInGame);
+                FriendHint.Text = $"Showing {filteredCount} matching friends ({inGame} currently in an experience).";
+            }
+            else
+            {
+                FriendHint.Text = $"No friends match '{query}'. Click Play to search Roblox directly for '@{query}'.";
+            }
         }
 
         private static int PresenceRank(UserPresenceInfo presence)
@@ -468,6 +694,10 @@ namespace RobloxIntegration
 
         public override string ToString()
         {
+            if (!string.IsNullOrEmpty(Name) && !string.Equals(Name, DisplayName, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"{DisplayName} (@{Name}) — {Status}";
+            }
             return $"{DisplayName} — {Status}";
         }
     }
